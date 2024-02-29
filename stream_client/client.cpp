@@ -321,10 +321,38 @@ void printfBits(uint64_t val, int nBits)
         }
 
 
+        // Write to memory quickly
+        void* addr = mem_region_->get_address();
+
+        auto* shared_data = static_cast<OptiTrackRBData*>(addr);
+
+        // Mutex locked here
+        {
+            // TODO: Do I want the one at the end or the beginning?
+            MocapFrameWrapper f = displayQueue.at(displayQueue.size()-1);
+            sFrameOfMocapData* data = f.data.get();
+
+            boost::interprocess::scoped_lock<boost::interprocess::interprocess_mutex> lock(shared_data->mutex);
+
+            if (data->nRigidBodies != OptiTrackRBData::NUM_RIGID_BODIES) {
+                std::cerr << "Invalid number of rigid bodies" << std::endl;
+            }
+
+            // Write data to the shared memory
+            for (int i = 0; i < data->nRigidBodies; i++) {
+                shared_data->x.at(i) = data->RigidBodies[i].x;
+                shared_data->y.at(i) = data->RigidBodies[i].y;
+                shared_data->z.at(i) = data->RigidBodies[i].z;
+                shared_data->qx.at(i) = data->RigidBodies[i].qx;
+                shared_data->qy.at(i) = data->RigidBodies[i].qy;
+                shared_data->qz.at(i) = data->RigidBodies[i].qz;
+                shared_data->qw.at(i) = data->RigidBodies[i].qw;
+            }
+        } // mutex freed here
+
         // Now we can take our time displaying our data without
         // worrying about interfering with the network processing queue.
-        for (MocapFrameWrapper f : displayQueue)
-        {
+        for (MocapFrameWrapper f : displayQueue) {
             sFrameOfMocapData* data = f.data.get();
 
             printf("\n=====================  New Packet Arrived  =============================\n");
@@ -502,37 +530,14 @@ void printfBits(uint64_t val, int nBits)
                     printf("\n");
                 }
             }
-
-            void* addr = mem_region_->get_address();
-
-            auto* shared_data = static_cast<OptiTrackRBData*>(addr);
-
-            // Mutex locked here
-            boost::interprocess::scoped_lock<boost::interprocess::interprocess_mutex> lock(shared_data->mutex);
-
-            if (data->nRigidBodies != OptiTrackRBData::NUM_RIGID_BODIES) {
-                throw std::runtime_error("Invalid number of rigid bodies");
-            }
-
-            // Write data to the shared memory
-            for (i = 0; i < data->nRigidBodies; i++)
-            {
-                shared_data->x.at(i) = data->RigidBodies[i].x;
-                shared_data->y.at(i) = data->RigidBodies[i].y;
-                shared_data->z.at(i) = data->RigidBodies[i].z;
-                shared_data->qx.at(i) = data->RigidBodies[i].qx;
-                shared_data->qy.at(i) = data->RigidBodies[i].qy;
-                shared_data->qz.at(i) = data->RigidBodies[i].qz;
-                shared_data->qw.at(i) = data->RigidBodies[i].qw;
-            }
-
-            // Release all frames (and frame data) in the display queue
-            for (MocapFrameWrapper f : displayQueue)
-            {
-                NatNet_FreeFrame(f.data.get());
-            }
-            displayQueue.clear();
         }
+
+        // Release all frames (and frame data) in the display queue
+        for (MocapFrameWrapper f : displayQueue)
+        {
+            NatNet_FreeFrame(f.data.get());
+        }
+        displayQueue.clear();
 
     }
 
