@@ -14,5 +14,6 @@
 int main ()
 {
     stream_client::ClientInterface interface;
-    interface.ReadOptiTrackData();
+    Eigen::Vector<double, 7> q;
+    interface.ReadOptiTrackData(q);
 }
