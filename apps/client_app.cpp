@@ -6,6 +6,6 @@
 
 int main() {
     // TODO: works when the computer is NOT set to loopback
-    stream_client::Client client;
+    stream_client::Client client(300);
     client.Listen();
 }

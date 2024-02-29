@@ -16,7 +16,7 @@ add_library(stream_client
 
 target_include_directories(stream_client PUBLIC
         $<BUILD_INTERFACE:${optitrack-stream-client_SOURCE_DIR}/stream_client/include>
-        $<INSTALL_INTERFACE:include/stream_client>)
+        $<INSTALL_INTERFACE:include/optitrack-stream-client>)
 
 #target_include_directories(stream_client PUBLIC include)
 

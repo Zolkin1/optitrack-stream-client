@@ -136,9 +136,13 @@ void printfBits(uint64_t val, int nBits)
     printf("\n");
 }
 
-    Client::Client() : shared_mem_(boost::interprocess::create_only, MEM_NAME, boost::interprocess::read_write) {
+    Client::Client(double data_rate) : shared_mem_(boost::interprocess::create_only, MEM_NAME, boost::interprocess::read_write) {
         shared_mem_.truncate(sizeof(OptiTrackRBData));
         mem_region_ = std::make_unique<boost::interprocess::mapped_region>(shared_mem_, boost::interprocess::read_write);
+
+        initialized_ = false;
+
+        data_rate_ = data_rate;
 
         // Print NatNet client version info
         unsigned char ver[4];
@@ -207,8 +211,9 @@ void printfBits(uint64_t val, int nBits)
             }
             else if ( c == 'q' )
             {
-                std::cout << "quitting.\n";
-                throw std::runtime_error("quitting (need to fix this later)");
+                std::cout << "Quitting.\n";
+                std::cerr << "[Optitrack Client] ERROR: No server selected/client not initialized." << std::endl;
+                return;
             }
         }
 
@@ -248,56 +253,54 @@ void printfBits(uint64_t val, int nBits)
             }
         }
 
+        initialized_ = true;
     }
 
     void Client::Listen() {
-        printf("\n[SampleClient] Client is connected to server and listening for data...\n");
-        bool bRunning = true;
-        while (bRunning)
-        {
-            // If Motive Asset list has changed, update our lookup maps
-            if (gNeedUpdatedDataDescriptions)
-            {
-                gUpdatedDataDescriptions = UpdateDataDescriptions(false);
-                if (gUpdatedDataDescriptions)
-                {
-                    gNeedUpdatedDataDescriptions = false;
+        if (initialized_) {
+            printf("\n[SampleClient] Client is connected to server and listening for data...\n");
+            bool bRunning = true;
+            while (bRunning) {
+                // If Motive Asset list has changed, update our lookup maps
+                if (gNeedUpdatedDataDescriptions) {
+                    gUpdatedDataDescriptions = UpdateDataDescriptions(false);
+                    if (gUpdatedDataDescriptions) {
+                        gNeedUpdatedDataDescriptions = false;
+                    }
                 }
+
+                // Process any keyboard commands
+                int keyboardInputChar = ProcessKeyboardInput();
+                if (keyboardInputChar == 'q') {
+                    bRunning = false;
+                }
+
+                // print all mocap frames in data queue to console
+                if (!gPauseOutput) {
+                    WriteDataToMemory();
+                }
+
+                const int ms = std::floor((1.0 / data_rate_) * 1000);
+                std::this_thread::sleep_for(std::chrono::milliseconds(ms));
             }
 
-            // Process any keyboard commands
-            int keyboardInputChar = ProcessKeyboardInput();
-            if (keyboardInputChar == 'q')
-            {
-                bRunning = false;
+            // Exiting - clean up
+            if (g_pClient) {
+                g_pClient->Disconnect();
+                delete g_pClient;
+                g_pClient = NULL;
             }
-
-            // print all mocap frames in data queue to console
-            if (!gPauseOutput)
-            {
-                WriteDataToMemory();
+            if (g_outputFile) {
+                WriteFooter(g_outputFile);
+                fclose(g_outputFile);
+                g_outputFile = NULL;
             }
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        }
-
-        // Exiting - clean up
-        if (g_pClient)
-        {
-            g_pClient->Disconnect();
-            delete g_pClient;
-            g_pClient = NULL;
-        }
-        if (g_outputFile)
-        {
-            WriteFooter(g_outputFile);
-            fclose(g_outputFile);
-            g_outputFile = NULL;
-        }
-        if (g_pDataDefs)
-        {
-            NatNet_FreeDescriptions(g_pDataDefs);
-            g_pDataDefs = NULL;
+            if (g_pDataDefs) {
+                NatNet_FreeDescriptions(g_pDataDefs);
+                g_pDataDefs = NULL;
+            }
+        } else {
+            std::cout << "[Optitrack Client] Not properly initialized. Will not listen." << std::endl;
         }
     }
 
@@ -530,6 +533,7 @@ void printfBits(uint64_t val, int nBits)
             }
             displayQueue.clear();
         }
+
     }
 
     Client::~Client() {

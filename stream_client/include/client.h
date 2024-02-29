@@ -17,7 +17,7 @@ namespace stream_client {
     public:
         #define MEM_NAME "optitrack-client:shared_mem2"
 
-        Client();
+        Client(double data_rate);
 
         void Listen();
 
@@ -36,6 +36,8 @@ namespace stream_client {
         boost::interprocess::shared_memory_object shared_mem_;
         std::unique_ptr<boost::interprocess::mapped_region> mem_region_;
 
+        double data_rate_;
+        bool initialized_;
     };
 } // stream_client
 
