@@ -308,7 +308,7 @@ void printfBits(uint64_t val, int nBits)
         // Add data from the network queue into our display queue in order to quickly
         // free up access to the network queue.
         std::deque<MocapFrameWrapper> displayQueue;
-        if (gNetworkQueueMutex.try_lock_for(std::chrono::milliseconds(5)))
+        if (gNetworkQueueMutex.try_lock_for(std::chrono::milliseconds(1)))
         {
             for (MocapFrameWrapper f : gNetworkQueue)
             {
